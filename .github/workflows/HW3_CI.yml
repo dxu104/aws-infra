@@ -1,4 +1,4 @@
-name: HW-1 CI
+name: HW-3 CI
 
 on:
   push:
