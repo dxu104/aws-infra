@@ -1,1 +1,1 @@
-profile = "Demo"
+profile = "demo"
