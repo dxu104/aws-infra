@@ -8,12 +8,17 @@ module "vpc" {
   public_subnets_num=var.private_subnets_num
   private_subnets_num = var.private_subnets_num
 
+
   vpc_name = "us-west-2-vpc-1"
   vpc-cidr = "10.0.0.0/16"
+
+
   region = var.region
   availability_zones = ["${var.region}a", "${var.region}b", "${var.region}c"]
 
+
 }
+
 
 module "vpc1" {
  
