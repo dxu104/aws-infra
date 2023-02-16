@@ -3,7 +3,8 @@ name: HW-3 CI
 on:
   push:
     branches:
-      - hw3
+      - HW3
+      - main
   pull_request:
     branches:
       - main
