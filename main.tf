@@ -17,6 +17,7 @@ module "vpc" {
 }
 
 
+
 # module "vpc1" {
 
 
@@ -28,6 +29,7 @@ module "vpc" {
 #   vpc-cidr = "10.1.0.0/16"
 #   ami_id = var.ami_id
 #   region = var.region
+
 
 #   availability_zones = ["${var.region}a", "${var.region}b", "${var.region}c"]
 
