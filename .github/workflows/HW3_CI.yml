@@ -1,12 +1,10 @@
-
-
 name: HW-3 CI
-
 
 on:
   push:
     branches:
-      - hw3
+      - HW3
+
   pull_request:
     branches:
       - main

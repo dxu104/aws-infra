@@ -19,4 +19,3 @@
 
    3. login into your IAM root user, choose Oregen region, go to VPC tab.
 
-

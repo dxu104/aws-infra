@@ -49,6 +49,11 @@ resource "aws_route_table" "public_rt" {
     Name = "route-public-table"
   }
 
+
+  tags = {
+    Name = "route-public-table"
+  }
+
 }
 
 # Associate the Public Route Table with Public Subnets
@@ -93,8 +98,6 @@ resource "aws_route_table" "private_route_table" {
   tags = {
 
     Name = "route-private-table"
-
-    Name = "route-private"
 
   }
 }
