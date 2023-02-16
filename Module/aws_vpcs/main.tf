@@ -46,16 +46,15 @@ resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.vpc.id
 
   tags = {
-<<<<<<< HEAD
+
     Name = "route-public-tbl"
   }
-=======
-    Name = "route-public-table"
-  }
 
 
- 
->>>>>>> 7e3e4a2 (HW3main)
+
+
+
+
 
 }
 
