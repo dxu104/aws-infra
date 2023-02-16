@@ -1,7 +1,6 @@
 
 
 
-
 variable "vpc_num" {
    default= 2
   description = " numuber of vpc in same region"
@@ -61,6 +60,7 @@ variable "region" {
   description = "region name"
   type = string
 }
+
 
 
 
