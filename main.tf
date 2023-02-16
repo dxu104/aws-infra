@@ -19,20 +19,6 @@ module "vpc" {
 
 }
 
-module "vpc1" {
- 
-
-  source = "./Module/aws_vpcs"
-  profile             = var.profile
-  public_subnets_num=var.private_subnets_num
-  private_subnets_num = var.private_subnets_num
-  vpc_name = "my_vpc"
-  vpc-cidr = "10.1.0.0/16"
-
-  region = var.region
-  availability_zones = ["${var.region}a", "${var.region}b", "${var.region}c"]
-
-}
 
 module "vpc1" {
  
