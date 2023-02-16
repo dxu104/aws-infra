@@ -7,6 +7,7 @@ module "vpc" {
   profile             = var.profile
   public_subnets_num=var.private_subnets_num
   private_subnets_num = var.private_subnets_num
+
   vpc_name = "us-west-2-vpc-1"
   vpc-cidr = "10.0.0.0/16"
   region = var.region
@@ -56,6 +57,10 @@ module "vpc3" {
   availability_zones = ["us-east-2a", "us-east-2b", "us-east-2c"]
 
 }
+
+
+
+
 
 
 
