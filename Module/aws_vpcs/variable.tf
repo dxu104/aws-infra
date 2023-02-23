@@ -44,5 +44,9 @@ variable "region" {
   description = "region name"
   type = string
 }
-
+variable "ami_id" {
+   default= "ami-04e61c2967631a8e3"
+  description = "ami_id"
+  type = string
+}
 

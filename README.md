@@ -14,6 +14,11 @@
       terraform validate
       terraform plan
       terraform apply 
+      terraform apply -var-file="demo.tfvars" -var-file="ami_id.tfvars" --auto-approve
+      terraform destroy -var-file="dev.tfvars" --auto-approve
+      -var-file="demo.tfvars" is let profile = var.profile in AWS provider source, which is dev
+      and dev can refer to ~/.asw.configure file 
+
       yes
    ```
 

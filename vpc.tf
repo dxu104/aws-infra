@@ -24,9 +24,9 @@ locals {
 
 # Create 3 public Subnet
 resource "aws_subnet" "public" {
-  count      = 3
-  cidr_block = "10.0.${count.index + 1}.0/24"
-  vpc_id     = aws_vpc.vpc.id
+  count             = 3
+  cidr_block        = "10.0.${count.index + 1}.0/24"
+  vpc_id            = aws_vpc.vpc.id
   availability_zone = local.availability_zones[count.index]
   tags = {
     Name = "subnet-public-${count.index + 1}"
@@ -56,9 +56,9 @@ resource "aws_route_table_association" "public" {
 }
 # Create  3 private subnet 
 resource "aws_subnet" "private" {
-  count      = 3
-  cidr_block = "10.0.${count.index + 4}.0/24"
-  vpc_id     = aws_vpc.vpc.id
+  count             = 3
+  cidr_block        = "10.0.${count.index + 4}.0/24"
+  vpc_id            = aws_vpc.vpc.id
   availability_zone = local.availability_zones[count.index]
   tags = {
     Name = "subnet-private-${count.index + 1}"
