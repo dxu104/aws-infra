@@ -8,7 +8,10 @@
 
 
    2. execute the following command    
-   ```terraform init
+   ```"aws configure list-profiles" to check all profile names
+   "aws configure --profile <profile-name>" to change your profile you want
+         
+   terraform init
       terraform validate
       terraform plan
       terraform apply 
