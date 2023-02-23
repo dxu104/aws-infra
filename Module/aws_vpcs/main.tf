@@ -47,12 +47,8 @@ resource "aws_route_table" "public_rt" {
 
   tags = {
 
-
-
     Name = "route-public-tbl"
   }
-
-
 
 
 
