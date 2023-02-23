@@ -1,0 +1,28 @@
+name: HW-3 CI
+
+on:
+  push:
+    branches:
+      - HW3
+      
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  hw3-CI:
+
+    runs-on: ubuntu-latest
+
+  
+    steps:
+
+      - uses: actions/checkout@v3
+
+
+      - name: Set up terraform
+        uses: hashicorp/setup-terraform@v1
+
+
+      - name: format check
+        run: terraform fmt
