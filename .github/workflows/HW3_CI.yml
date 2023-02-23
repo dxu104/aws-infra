@@ -1,10 +1,18 @@
+<<<<<<< HEAD
 name: HW-3 CI
+=======
+name: HW-1 CI
+>>>>>>> 37a6c20 (HW3Branch)
 
 on:
   push:
     branches:
+<<<<<<< HEAD
       - HW3
 
+=======
+      - hw3
+>>>>>>> 37a6c20 (HW3Branch)
   pull_request:
     branches:
       - main
