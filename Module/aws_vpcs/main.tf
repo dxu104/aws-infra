@@ -52,8 +52,6 @@ resource "aws_route_table" "public_rt" {
 
 
 
-
-
 }
 
 # Associate the Public Route Table with Public Subnets
@@ -160,7 +158,9 @@ data "aws_ami" "webserver" {
 
 resource "aws_instance" "ec2-instance" {
   ami = data.aws_ami.webserver.id # Use the AMI ID retrieved by the data block
+
   #ami = var.ami_id # Replace with your custom AMI ID
+
   instance_type = "t2.micro"
   key_name = "ec2" 
   #I have a ec2 and ec2.pub in my cd ~/.ssh  
