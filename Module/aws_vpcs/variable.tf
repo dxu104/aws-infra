@@ -50,3 +50,50 @@ variable "ami_id" {
   type = string
 }
 
+variable "public_key_path" {
+   default= "~/.ssh/ec2.pub"
+  description = "local path of key pair"
+  type = string
+}
+
+variable "db-password" {
+   default= "root1234"
+  description = "password of db"
+  type = string
+}
+variable "db-name" {
+   default= "csye6225"
+  description = "name of db"
+  type = string
+}
+
+variable "db-username" {
+   default= "root"
+  description = "username of db"
+  type = string
+}
+
+variable "AWS_ACCESS_KEY_ID" {
+   default= "AKIASXLAYFSPGTHERZUJ"
+  description = "id"
+  type = string
+}
+
+variable "AWS_SECRET_ACCESS_KEY" {
+   default= "h2UT4l41LyxA9O4igX9ZQKNC04w5CTLAmon5MYLC"
+  description = "key"
+  type = string
+}
+
+variable "hostname" {
+   default= "csye6225_DC"
+  description = "name"
+  type = string
+}
+
+
+
+
+
+
+

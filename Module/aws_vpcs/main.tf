@@ -145,7 +145,16 @@ resource "aws_security_group" "web_security_group" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
 }
+
+
 
 #create EC2 instance based on your lastest AMI in your AWS account 
 data "aws_ami" "webserver" {
@@ -157,18 +166,94 @@ data "aws_ami" "webserver" {
   }
 }
 
-resource "aws_instance" "ec2-instance" {
-  ami = data.aws_ami.webserver.id # Use the AMI ID retrieved by the data block
-  #ami = var.ami_id # Replace with your custom AMI ID
-  instance_type = "t2.micro"
-  key_name = "ec2" 
+resource "aws_key_pair" "ec2-keypair" {
+  key_name   = "sameAsEc2"
+  public_key = file(var.public_key_path)
   #I have a ec2 and ec2.pub in my cd ~/.ssh  
   #In your case, the key_name attribute is 
   #set to "ec2", which means that 
   #you should have a key pair in your AWS account with the name "ec2".
+}
+
+
+output "public_ip" {
+  value = aws_instance.ec2-instance.public_ip
+}
+
+
+# resource "aws_db_subnet_group" "rds_instance_subnet_group" {
+#   name       = "rds_instance_subnet_group"
+#   subnet_ids = [aws_subnet.private_subnet[0].id, aws_subnet.private_subnet[1].id]
+# }
+
+
+
+  # Add more parameters as desired
+
+
+//action 这里不能写*，权限太大了，要改
+// arn:aws：s3 ：：：这里写bucket name这里要从环境变量里面拿
+//第二个arn:aws：s3 ：：代表policy用于所有的object in the bucket
+
+resource "aws_iam_policy" "web_app_s3_policy" {
+  name = "WebAppS3"
+  policy = jsonencode({
+    Version= "2012-10-17"
+    Statement=[
+        {
+          Effect= "Allow"
+            Action = [
+                "s3:Get*",
+                "s3:List*",
+                "s3:PutObject",
+                "s3:DeleteObject*",
+            ]
+            
+            Resource= [
+                "arn:aws:s3:::${aws_s3_bucket.csye6225_DC_bucket.bucket}",
+                "arn:aws:s3:::${aws_s3_bucket.csye6225_DC_bucket.bucket}/*",
+            ]
+        }
+    ]
+})
+
+}
+
+
+resource "aws_iam_role" "ec2_role" {
+  name = "EC2-CSYE6225"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_role_policy_attachment" {
+  policy_arn = aws_iam_policy.web_app_s3_policy.arn
+  role = aws_iam_role.ec2_role.name
+}
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "EC2-CSYE6225-profile"
+  role = aws_iam_role.ec2_role.name
+}
+resource "aws_instance" "ec2-instance" {
+  ami = data.aws_ami.webserver.id # Use the AMI ID retrieved by the data block
+  #ami = var.ami_id # Replace with your custom AMI ID
+  instance_type = "t2.micro"
+  key_name = aws_key_pair.ec2-keypair.key_name
+  associate_public_ip_address = true
+  
   subnet_id = aws_subnet.public_subnet[0].id
   vpc_security_group_ids = [aws_security_group.web_security_group.id]
-  associate_public_ip_address = true
+  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
   root_block_device {
     volume_size = 50
     volume_type = "gp2"
@@ -177,8 +262,135 @@ resource "aws_instance" "ec2-instance" {
   tags = {
     Name = "DC-ec2"
   }
+  user_data = <<-EOF
+      #!/bin/bash
+      sudo chmod -v 777 /etc/bashrc
+      # Set environment variables for the application
+      echo "export DB_HOST=${aws_db_instance.rds_instance.endpoint}">> /etc/bashrc
+      echo "export DB_NAME=${var.db-name}">> /etc/bashrc
+      echo "export DB_USERNAME=${var.db-username}">> /etc/bashrc
+      echo "export DB_PASSWORD=${var.db-password}">> /etc/bashrc
+      echo "export BUCKET_NAME=${aws_s3_bucket.csye6225_DC_bucket.bucket}">> /etc/bashrc
+      echo "export REGION=${var.region}">> /etc/bashrc
+      echo "export AWS_ACCESS_KEY_ID=${var.AWS_ACCESS_KEY_ID}">> /etc/bashrc
+      echo "export AWS_SECRET_ACCESS_KEY=${var.AWS_SECRET_ACCESS_KEY}">> /etc/bashrc
+      source /etc/bashrc
+      
+      cd /opt/ && java -jar HomeWork1-0.0.1-SNAPSHOT.jar
+    EOF
+
+  
+
 }
 
-output "public_ip" {
-  value = aws_instance.ec2-instance.public_ip
+
+//add the following for introduce RDS
+//for assignment 6, you need to create a new database securtiy group
+//
+resource "aws_security_group" "rds_security-group" {
+  name_prefix = "rds_security-group"
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    from_port = 3306
+    to_port   = 3306
+    protocol  = "tcp"
+    cidr_blocks = [aws_subnet.public_subnet[0].cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
+
+
+resource "random_uuid" "main" {}
+
+resource "aws_kms_key" "mykey" {
+  description = "This key is used to encrypt bucket objects"
+  deletion_window_in_days = 15
+}
+
+resource "aws_s3_bucket" "csye6225_DC_bucket" {
+  bucket = "s3bucket-${random_uuid.main.result}"
+
+  tags = {
+    Name = "s3bucket-${random_uuid.main.result}"
+    # Environment ="Dev"
+  }
+
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "private_bucket_sse" {
+  bucket = aws_s3_bucket.csye6225_DC_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      #kms_master_key_id = aws_kms_key.mykey.arn
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_acl" "private_bucket_acl" {
+  bucket = aws_s3_bucket.csye6225_DC_bucket.id
+  acl    = "private"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "s3_rule" {
+  bucket = aws_s3_bucket.csye6225_DC_bucket.id
+
+  rule {
+    id      = "log"
+    status  = "Enabled"
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+  }
+}
+ 
+
+resource "aws_db_parameter_group" "rds-paragrp" {
+  name_prefix = "rds-paragrp"
+  family      = "mysql8.0"
+
+  parameter {
+    name  = "character_set_server"
+    value = "utf8"
+  }
+
+  parameter {
+    name  = "character_set_client"
+    value = "utf8"
+  }
+}
+resource "aws_db_instance" "rds_instance" {
+  engine               = "mysql"
+  instance_class       = "db.t3.micro"
+  multi_az             = false
+  skip_final_snapshot = false
+ 
+  identifier           = "csye6225"
+  username             = var.db-username
+  password             = var.db-password
+  publicly_accessible  = false
+  db_name              = var.db-name
+  vpc_security_group_ids = [aws_security_group.rds_security-group.id]
+  db_subnet_group_name = aws_db_subnet_group.rds_subnet_group.name
+  parameter_group_name = aws_db_parameter_group.rds-paragrp.id
+  allocated_storage    = 20
+}
+
+
+resource "aws_db_subnet_group" "rds_subnet_group" {
+  name       = "rds_subnets"
+  subnet_ids = aws_subnet.private_subnet.*.id //private
+}
+
+
