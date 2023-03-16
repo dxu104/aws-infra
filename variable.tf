@@ -68,4 +68,8 @@ variable "ami_id" {
 
 
 
-
+variable "domain_name" {
+  type = string
+  //default = "demo.dechengxu.me"
+  description = "name"
+}

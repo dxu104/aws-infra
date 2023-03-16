@@ -73,23 +73,60 @@ variable "db-username" {
   type = string
 }
 
-variable "AWS_ACCESS_KEY_ID" {
-   default= "AKIASXLAYFSPGTHERZUJ"
-  description = "id"
-  type = string
-}
+# variable "AWS_ACCESS_KEY_ID" {
+#    //default= "123"
+#   description = "id"
+#   type = string
+# }
 
-variable "AWS_SECRET_ACCESS_KEY" {
-   default= "h2UT4l41LyxA9O4igX9ZQKNC04w5CTLAmon5MYLC"
-  description = "key"
-  type = string
-}
+# variable "AWS_SECRET_ACCESS_KEY" {
+#    //default= "345"
+#   description = "key"
+#   type = string
+# }
 
 variable "hostname" {
    default= "csye6225_DC"
   description = "name"
   type = string
 }
+
+
+variable "root_zone_id" {
+  type = string
+  default = "Z00938262063SRV55QZB9"
+  description = "zone_id"
+}
+variable "dev_zone_id" {
+  type = string
+  default = "Z1010723CGDKV2QHQZHV"
+  description = "zone_id"
+}
+
+variable "demo_zone_id" {
+  type = string
+  default = "Z0056496EK576IZZQLBY"
+  description = "zone_id"
+}
+
+variable "root_domain_name" {
+  type = string
+  default = "dechengxu.me"
+  description = "name"
+}
+
+variable "dev_domain_name" {
+  type = string
+  default = "dev.dechengxu.me"
+  description = "name"
+}
+
+variable "domain_name" {
+  type = string
+  //default = "demo.dechengxu.me"
+  description = "name"
+}
+
 
 
 
