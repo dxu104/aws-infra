@@ -4,6 +4,18 @@ provider "aws" {
   region  = var.region
   profile = var.profile
 }
+provider "aws" {
+  alias = "dev"
+  region = var.region
+  profile = "dev"
+  
+}
+provider "aws" {
+  alias = "root"
+  region = var.region
+  profile = "root"
+  
+}
 
 # Create VPC
 # terraform aws create vpc
@@ -169,6 +181,11 @@ data "aws_ami" "webserver" {
 resource "aws_key_pair" "ec2-keypair" {
   key_name   = "sameAsEc2"
   public_key = file(var.public_key_path)
+
+  lifecycle {
+    prevent_destroy = false
+  }
+  
   #I have a ec2 and ec2.pub in my cd ~/.ssh  
   #In your case, the key_name attribute is 
   #set to "ec2", which means that 
@@ -207,17 +224,25 @@ resource "aws_iam_policy" "web_app_s3_policy" {
                 "s3:List*",
                 "s3:PutObject",
                 "s3:DeleteObject*",
+                "route53:List*",
+                "route53:Get*",
+                "route53:ChangeResourceRecordSets",
             ]
             
             Resource= [
                 "arn:aws:s3:::${aws_s3_bucket.csye6225_DC_bucket.bucket}",
                 "arn:aws:s3:::${aws_s3_bucket.csye6225_DC_bucket.bucket}/*",
+               
             ]
         }
     ]
 })
-
+lifecycle {
+    prevent_destroy = false
+  }
 }
+# "arn:aws:route53:::hostedzone/${data.aws_route53_zone.AWS_hosted_zone.zone_id}",
+               # "arn:aws:route53:::change/*"
 
 
 resource "aws_iam_role" "ec2_role" {
@@ -234,6 +259,9 @@ resource "aws_iam_role" "ec2_role" {
       }
     ]
   })
+  lifecycle {
+    prevent_destroy = false
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ec2_role_policy_attachment" {
@@ -266,22 +294,26 @@ resource "aws_instance" "ec2-instance" {
       #!/bin/bash
       sudo chmod -v 777 /etc/bashrc
       # Set environment variables for the application
+      
       echo "export DB_HOST=${aws_db_instance.rds_instance.endpoint}">> /etc/bashrc
       echo "export DB_NAME=${var.db-name}">> /etc/bashrc
       echo "export DB_USERNAME=${var.db-username}">> /etc/bashrc
       echo "export DB_PASSWORD=${var.db-password}">> /etc/bashrc
       echo "export BUCKET_NAME=${aws_s3_bucket.csye6225_DC_bucket.bucket}">> /etc/bashrc
       echo "export REGION=${var.region}">> /etc/bashrc
-      echo "export AWS_ACCESS_KEY_ID=${var.AWS_ACCESS_KEY_ID}">> /etc/bashrc
-      echo "export AWS_SECRET_ACCESS_KEY=${var.AWS_SECRET_ACCESS_KEY}">> /etc/bashrc
-      source /etc/bashrc
+       cd /opt/ && java -jar HomeWork1-0.0.1-SNAPSHOT.jar
+       source /etc/bashrc  
       
-      cd /opt/ && java -jar HomeWork1-0.0.1-SNAPSHOT.jar
+        
     EOF
-
+ lifecycle {
+    prevent_destroy = false
+  }
   
 
 }
+//echo "export AWS_ACCESS_KEY_ID=${var.AWS_ACCESS_KEY_ID}">> /etc/bashrc
+//echo "export AWS_SECRET_ACCESS_KEY=${var.AWS_SECRET_ACCESS_KEY}">> /etc/bashrc
 
 
 //add the following for introduce RDS
@@ -295,7 +327,8 @@ resource "aws_security_group" "rds_security-group" {
     from_port = 3306
     to_port   = 3306
     protocol  = "tcp"
-    cidr_blocks = [aws_subnet.public_subnet[0].cidr_block]
+    security_groups = [aws_security_group.web_security_group.id]
+    #cidr_blocks = [aws_subnet.public_subnet[0].cidr_block]
   }
 
   egress {
@@ -374,7 +407,7 @@ resource "aws_db_instance" "rds_instance" {
   engine               = "mysql"
   instance_class       = "db.t3.micro"
   multi_az             = false
-  skip_final_snapshot = false
+  skip_final_snapshot = true
  
   identifier           = "csye6225"
   username             = var.db-username
@@ -390,7 +423,51 @@ resource "aws_db_instance" "rds_instance" {
 
 resource "aws_db_subnet_group" "rds_subnet_group" {
   name       = "rds_subnets"
-  subnet_ids = aws_subnet.private_subnet.*.id //private
+  subnet_ids = aws_subnet.private_subnet.*.id //privateç
+   lifecycle {
+    prevent_destroy = false
+  }
+}
+
+# data "aws_route53_zone" "AWS_hosted_zone" {
+#   name = var.domain_name
+# }
+  //associate_public_ip_address = true I need to do this in aws_instance resource for To make this work, you need to ensure that the aws_instance resource is assigned a public IP address. This can be done by specifying associate_public_ip_address = true within the aws_instance resource.
+
+resource "aws_route53_record" "DC_record_root" {
+  provider = aws.root
+
+  name    = var.root_domain_name
+  type    = "A"
+  ttl     = "60"
+  records = [aws_instance.ec2-instance.public_ip]
+  zone_id = var.root_zone_id
+  lifecycle {
+    create_before_destroy=true
+  }
+}
+resource "aws_route53_record" "DC_record_dev" {
+  provider = aws.dev
+  name    = var.dev_domain_name
+  type    = "A"
+  ttl     = "60"
+  records = [aws_instance.ec2-instance.public_ip]
+  zone_id = var.dev_zone_id
+  lifecycle {
+    create_before_destroy=true
+  }
+}
+
+resource "aws_route53_record" "DC_record_demo" {
+  
+  name    = var.domain_name
+  type    = "A"
+  ttl     = "60"
+  records = [aws_instance.ec2-instance.public_ip]
+  zone_id = var.demo_zone_id
+  lifecycle {
+    create_before_destroy=true
+  }
 }
 
 
