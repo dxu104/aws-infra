@@ -224,9 +224,7 @@ resource "aws_iam_policy" "web_app_s3_policy" {
                 "s3:List*",
                 "s3:PutObject",
                 "s3:DeleteObject*",
-                "route53:List*",
-                "route53:Get*",
-                "route53:ChangeResourceRecordSets",
+                
             ]
             
             Resource= [
@@ -237,10 +235,15 @@ resource "aws_iam_policy" "web_app_s3_policy" {
         }
     ]
 })
+
 lifecycle {
     prevent_destroy = false
   }
 }
+
+# "route53:List*",
+#                 "route53:Get*",
+#                 "route53:ChangeResourceRecordSets",
 # "arn:aws:route53:::hostedzone/${data.aws_route53_zone.AWS_hosted_zone.zone_id}",
                # "arn:aws:route53:::change/*"
 
@@ -268,6 +271,13 @@ resource "aws_iam_role_policy_attachment" "ec2_role_policy_attachment" {
   policy_arn = aws_iam_policy.web_app_s3_policy.arn
   role = aws_iam_role.ec2_role.name
 }
+data "aws_iam_policy" "cloudwatch_policy" {
+  arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+resource "aws_iam_role_policy_attachment" "cloudwatch_policy_attachment" {
+  policy_arn = data.aws_iam_policy.cloudwatch_policy.arn
+  role       = aws_iam_role.ec2_role.name
+}
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "EC2-CSYE6225-profile"
   role = aws_iam_role.ec2_role.name
@@ -292,7 +302,9 @@ resource "aws_instance" "ec2-instance" {
   }
   user_data = <<-EOF
       #!/bin/bash
-      sudo chmod -v 777 /etc/bashrc
+      
+      sudo chown -R ec2-user /etc/bashrc
+      sudo chgrp -R ec2-user /etc/bashrc
       # Set environment variables for the application
       
       echo "export DB_HOST=${aws_db_instance.rds_instance.endpoint}">> /etc/bashrc
@@ -300,9 +312,19 @@ resource "aws_instance" "ec2-instance" {
       echo "export DB_USERNAME=${var.db-username}">> /etc/bashrc
       echo "export DB_PASSWORD=${var.db-password}">> /etc/bashrc
       echo "export BUCKET_NAME=${aws_s3_bucket.csye6225_DC_bucket.bucket}">> /etc/bashrc
+      echo "export AMIId=${data.aws_ami.webserver.id}">> /etc/bashrc
       echo "export REGION=${var.region}">> /etc/bashrc
-       cd /opt/ && java -jar HomeWork1-0.0.1-SNAPSHOT.jar
-       source /etc/bashrc  
+      
+      sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/cloudWatchAgentConfig.json
+      
+      
+      sudo chown -R ec2-user /var/log/myapp/
+      sudo chgrp -R ec2-user /var/log/myapp/
+
+
+      source /etc/bashrc  
+      sudo systemctl restart JavaService
+      
       
         
     EOF
@@ -312,6 +334,15 @@ resource "aws_instance" "ec2-instance" {
   
 
 }
+# 更改属主 sudo chown -R ec2-user /etc/bashrc
+ # 更改属组     sudo chgrp -R ec2-user /etc/bashrc
+#sudo chmod -v 755 /etc/bashrc
+# mkdir -p /var/log/myapp
+#       sudo chmod -v 777 /var/log/myapp
+#chown -R ec2-user:ec2-user /var/log/myapp
+
+#sudo systemctl restart JavaService
+ #cd /opt/ && java -jar HomeWork1-0.0.1-SNAPSHOT.jar
 //echo "export AWS_ACCESS_KEY_ID=${var.AWS_ACCESS_KEY_ID}">> /etc/bashrc
 //echo "export AWS_SECRET_ACCESS_KEY=${var.AWS_SECRET_ACCESS_KEY}">> /etc/bashrc
 
