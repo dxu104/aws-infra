@@ -73,17 +73,17 @@ variable "db-username" {
   type = string
 }
 
-# variable "AWS_ACCESS_KEY_ID" {
-#    //default= "123"
-#   description = "id"
-#   type = string
-# }
+variable "AWS_ACCESS_KEY_ID" {
+   default= "123"
+  description = "id"
+  type = string
+}
 
-# variable "AWS_SECRET_ACCESS_KEY" {
-#    //default= "345"
-#   description = "key"
-#   type = string
-# }
+variable "AWS_SECRET_ACCESS_KEY" {
+   default= "345"
+  description = "key"
+  type = string
+}
 
 variable "hostname" {
    default= "csye6225_DC"
@@ -92,22 +92,22 @@ variable "hostname" {
 }
 
 
-variable "root_zone_id" {
-  type = string
-  default = "Z00938262063SRV55QZB9"
-  description = "zone_id"
-}
-variable "dev_zone_id" {
-  type = string
-  default = "Z1010723CGDKV2QHQZHV"
-  description = "zone_id"
-}
+# variable "root_zone_id" {
+#   type = string
+#   default = "Z00938262063SRV55QZB9"
+#   description = "zone_id"
+# }
+# variable "dev_zone_id" {
+#   type = string
+#   default = "Z1010723CGDKV2QHQZHV"
+#   description = "zone_id"
+# }
 
-variable "demo_zone_id" {
-  type = string
-  default = "Z0056496EK576IZZQLBY"
-  description = "zone_id"
-}
+# variable "demo_zone_id" {
+#   type = string
+#   default = "Z0056496EK576IZZQLBY"
+#   description = "zone_id"
+# }
 
 variable "root_domain_name" {
   type = string
@@ -121,13 +121,17 @@ variable "dev_domain_name" {
   description = "name"
 }
 
-variable "domain_name" {
+variable "demo_domain_name" {
   type = string
-  //default = "demo.dechengxu.me"
+  default = "demo.dechengxu.me"
   description = "name"
 }
 
-
+variable "application_port" {
+  default= 8080
+  description = "app port number"
+  type = number
+}
 
 
 

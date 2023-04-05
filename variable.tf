@@ -66,10 +66,20 @@ variable "ami_id" {
   type        = string
 }
 
-
-
-variable "domain_name" {
+variable "AWS_ACCESS_KEY_ID" {
+   default= "123"
+  description = "id"
   type = string
-  //default = "demo.dechengxu.me"
-  description = "name"
 }
+
+variable "AWS_SECRET_ACCESS_KEY" {
+   default= "345"
+  description = "key"
+  type = string
+}
+
+# variable "domain_name" {
+#   type = string
+#   //default = "demo.dechengxu.me"
+#   description = "name"
+# }

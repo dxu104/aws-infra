@@ -1,8 +1,15 @@
 
 
+
 provider "aws" {
   region  = var.region
   profile = var.profile
+}
+provider "aws" {
+  alias = "demo"
+  region = var.region
+  profile = "demo"
+  
 }
 provider "aws" {
   alias = "dev"
@@ -123,19 +130,11 @@ resource "aws_route_table_association" "private_subnet_rta" {
 }
 
 
-
-
-
-resource "aws_security_group" "web_security_group" {
-  name = "DechengSg"
+# Load balancer security group
+resource "aws_security_group" "load_balancer_sg" {
+  name        = "load_balancer_sg"
   vpc_id      = aws_vpc.vpc.id
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  description = "Allow two kind of inbound traffic for load balancer"
 
   ingress {
     from_port   = 80
@@ -150,13 +149,40 @@ resource "aws_security_group" "web_security_group" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+
+
+resource "aws_security_group" "web_security_group" {
+  name = "DechengSg"
+  description = "Allow inbound traffic for app instances"
+  vpc_id      = aws_vpc.vpc.id
+
+ 
+
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.load_balancer_sg.id]
+  }
+
+  ingress {
+    from_port       = var.application_port
+    to_port         = var.application_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.load_balancer_sg.id]
+  }
+
+ 
+
+  
   egress {
     from_port   = 0
     to_port     = 0
@@ -193,15 +219,17 @@ resource "aws_key_pair" "ec2-keypair" {
 }
 
 
-output "public_ip" {
-  value = aws_instance.ec2-instance.public_ip
+# output "public_ip" {
+#   value = aws_instance.ec2-instance.public_ip
+# } 因为不用单个EC2了，所以用下面的部分，直接获取 ASG 实例的公共 IP 是比较困难的，因为它们是动态创建的。一个更好的方法是使用负载均衡器的 DNS 名称作为输出
+
+output "load_balancer_dns_name" {
+  value = aws_lb.app_load_balancer.dns_name
 }
 
 
-# resource "aws_db_subnet_group" "rds_instance_subnet_group" {
-#   name       = "rds_instance_subnet_group"
-#   subnet_ids = [aws_subnet.private_subnet[0].id, aws_subnet.private_subnet[1].id]
-# }
+
+
 
 
 
@@ -224,8 +252,9 @@ resource "aws_iam_policy" "web_app_s3_policy" {
                 "s3:List*",
                 "s3:PutObject",
                 "s3:DeleteObject*",
-                
+                "s3:DeleteBucketLifecycle"
             ]
+            # Resource= "*"
             
             Resource= [
                 "arn:aws:s3:::${aws_s3_bucket.csye6225_DC_bucket.bucket}",
@@ -241,11 +270,7 @@ lifecycle {
   }
 }
 
-# "route53:List*",
-#                 "route53:Get*",
-#                 "route53:ChangeResourceRecordSets",
-# "arn:aws:route53:::hostedzone/${data.aws_route53_zone.AWS_hosted_zone.zone_id}",
-               # "arn:aws:route53:::change/*"
+
 
 
 resource "aws_iam_role" "ec2_role" {
@@ -257,6 +282,7 @@ resource "aws_iam_role" "ec2_role" {
         Effect = "Allow"
         Principal = {
           Service = "ec2.amazonaws.com"
+
         }
         Action = "sts:AssumeRole"
       }
@@ -282,31 +308,16 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   name = "EC2-CSYE6225-profile"
   role = aws_iam_role.ec2_role.name
 }
-resource "aws_instance" "ec2-instance" {
-  ami = data.aws_ami.webserver.id # Use the AMI ID retrieved by the data block
-  #ami = var.ami_id # Replace with your custom AMI ID
-  instance_type = "t2.micro"
-  key_name = aws_key_pair.ec2-keypair.key_name
-  associate_public_ip_address = true
-  
-  subnet_id = aws_subnet.public_subnet[0].id
-  vpc_security_group_ids = [aws_security_group.web_security_group.id]
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
-  root_block_device {
-    volume_size = 50
-    volume_type = "gp2"
-    delete_on_termination = true
-  }
-  tags = {
-    Name = "DC-ec2"
-  }
-  user_data = <<-EOF
+
+data "template_file" "user_data" {
+
+ template = <<EOF
       #!/bin/bash
-      
+
       sudo chown -R ec2-user /etc/bashrc
       sudo chgrp -R ec2-user /etc/bashrc
       # Set environment variables for the application
-      
+
       echo "export DB_HOST=${aws_db_instance.rds_instance.endpoint}">> /etc/bashrc
       echo "export DB_NAME=${var.db-name}">> /etc/bashrc
       echo "export DB_USERNAME=${var.db-username}">> /etc/bashrc
@@ -314,42 +325,138 @@ resource "aws_instance" "ec2-instance" {
       echo "export BUCKET_NAME=${aws_s3_bucket.csye6225_DC_bucket.bucket}">> /etc/bashrc
       echo "export AMIId=${data.aws_ami.webserver.id}">> /etc/bashrc
       echo "export REGION=${var.region}">> /etc/bashrc
-      
+
       sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/cloudWatchAgentConfig.json
-      
-      
+
       sudo chown -R ec2-user /var/log/myapp/
       sudo chgrp -R ec2-user /var/log/myapp/
 
-
-      source /etc/bashrc  
+      source /etc/bashrc
       sudo systemctl restart JavaService
-      
-      
-        
     EOF
- lifecycle {
-    prevent_destroy = false
-  }
-  
+
+ 
 
 }
-# 更改属主 sudo chown -R ec2-user /etc/bashrc
- # 更改属组     sudo chgrp -R ec2-user /etc/bashrc
-#sudo chmod -v 755 /etc/bashrc
-# mkdir -p /var/log/myapp
-#       sudo chmod -v 777 /var/log/myapp
-#chown -R ec2-user:ec2-user /var/log/myapp
 
-#sudo systemctl restart JavaService
- #cd /opt/ && java -jar HomeWork1-0.0.1-SNAPSHOT.jar
-//echo "export AWS_ACCESS_KEY_ID=${var.AWS_ACCESS_KEY_ID}">> /etc/bashrc
-//echo "export AWS_SECRET_ACCESS_KEY=${var.AWS_SECRET_ACCESS_KEY}">> /etc/bashrc
+//we delete the single EC2 create resources, using aws_launch_configuration 
+//and aws_autoscaling_group to create dynamicly EC2 instance.
+# Launch Configuration
+resource "aws_launch_template" "asg_launch_template" {
+  name_prefix = "asg_launch_template"
+
+  image_id      = data.aws_ami.webserver.id
+  instance_type = "t2.micro"
+  key_name      = aws_key_pair.ec2-keypair.key_name
+
+  #vpc_security_group_ids = [aws_security_group.web_security_group.id]
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.web_security_group.id]
+    delete_on_termination       = true
+  }
+  
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_profile.name
+  }
+  
+  user_data = base64encode(data.template_file.user_data.rendered)
+  
+
+   block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 50
+      volume_type           = "gp2"
+      delete_on_termination = true
+    }
+  }
+
+}
 
 
-//add the following for introduce RDS
-//for assignment 6, you need to create a new database securtiy group
-//
+# Auto Scaling Group
+resource "aws_autoscaling_group" "web_asg" {
+  #和下面的launch_template重复
+  #launch_configuration = aws_launch_template.asg_launch_template.name
+  min_size             = 1
+  max_size             = 3
+  desired_capacity     = 1
+  health_check_grace_period = 300
+  health_check_type         = "EC2"
+  default_cooldown          = 60
+  //vpc_zone_identifier  = [aws_subnet.public_subnet[0].id]
+  //This option configures the Auto Scaling Group to launch EC2 instances across three subnets. This helps distribute instances across different availability zones, increasing fault tolerance and high availability. If one availability zone experiences an issue, instances in other availability zones can still continue to operate.
+  vpc_zone_identifier  = [aws_subnet.public_subnet[0].id,aws_subnet.public_subnet[1].id,aws_subnet.public_subnet[2].id] 
+
+  //update自动缩放组以使用负载均衡器目标组
+  target_group_arns    = [aws_lb_target_group.app_target_group.arn]
+launch_template {
+
+ id = aws_launch_template.asg_launch_template.id
+
+ version = "$Latest"
+
+ }
+
+  tag {
+    key                 = "Name"
+    value               = "DC-ec2"
+    //used to identify which ec2 instance is new one
+    propagate_at_launch = true
+  }
+}
+
+# Auto Scaling Policies
+resource "aws_autoscaling_policy" "scale_up" {
+  name                   = "scale_up"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 60
+  autoscaling_group_name = aws_autoscaling_group.web_asg.name
+}
+
+resource "aws_cloudwatch_metric_alarm" "scale_up_alarm" {
+  alarm_name          = "scale_up_alarm"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "60"
+  statistic           = "Average"
+  threshold           = "10"
+  alarm_description   = "CPU usage exceeds 10%"
+  alarm_actions       = [aws_autoscaling_policy.scale_up.arn]
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.web_asg.name
+  }
+}
+
+resource "aws_autoscaling_policy" "scale_down" {
+  name                   = "scale_down"
+  scaling_adjustment     = -1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 60
+  autoscaling_group_name = aws_autoscaling_group.web_asg.name
+}
+
+resource "aws_cloudwatch_metric_alarm" "scale_down_alarm" {
+  alarm_name          = "scale_down_alarm"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "60"
+  statistic           = "Average"
+  threshold           = "5"
+  alarm_description   = "CPU usage is below 5%"
+  alarm_actions       = [aws_autoscaling_policy.scale_down.arn]
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.web_asg.name
+  }
+}
+
+
 resource "aws_security_group" "rds_security-group" {
   name_prefix = "rds_security-group"
   vpc_id      = aws_vpc.vpc.id
@@ -460,45 +567,284 @@ resource "aws_db_subnet_group" "rds_subnet_group" {
   }
 }
 
-# data "aws_route53_zone" "AWS_hosted_zone" {
-#   name = var.domain_name
-# }
-  //associate_public_ip_address = true I need to do this in aws_instance resource for To make this work, you need to ensure that the aws_instance resource is assigned a public IP address. This can be done by specifying associate_public_ip_address = true within the aws_instance resource.
+
+
+# Create the Application Load Balancer
+resource "aws_lb" "app_load_balancer" {
+  name               = "app-load-balancer"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.load_balancer_sg.id]
+  #ip_address_type    = "dualstack" # Add this line to set IP address type
+
+  subnets = [
+    aws_subnet.public_subnet[0].id,
+    aws_subnet.public_subnet[1].id,
+    aws_subnet.public_subnet[2].id
+  ]
+  #scheme = "internet-facing" # default you do not need to mention
+
+
+  tags = {
+    Name = "app-load-balancer"
+  }
+}
+
+# Create a target group for the load balancer to forward traffic to
+resource "aws_lb_target_group" "app_target_group" {
+  name     = "app-target-group"
+  target_type = "instance"
+  port     = var.application_port
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.vpc.id
+  load_balancing_algorithm_type = "round_robin"
+
+  health_check {
+    enabled             = true
+    interval            = 200
+    path                = "/healthz"
+    timeout             = 5
+    healthy_threshold   = 3
+    unhealthy_threshold = 2
+    matcher=200
+  }
+}
+resource "aws_lb_listener" "http_listener" {
+  load_balancer_arn = aws_lb.app_load_balancer.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_target_group.arn
+  }
+}
+
+# Register the Auto Scaling Group instances as targets
+# resource "aws_autoscaling_attachment" "asg_attachment" {
+#   autoscaling_group_name = aws_autoscaling_group.web_asg.id
+#   alb_target_group_arn   = aws_lb_target_group.app_target_group.arn
+# } 
+//这个attachment和
+//target_group_arns = [aws_lb_target_group.app_target_group.arn]重复了
+
+
+
+
+
+data "aws_route53_zone" "demo" {
+  provider = aws.demo
+  name         = var.demo_domain_name
+}
+
+resource "aws_acm_certificate" "certificate" {
+  provider = aws.demo
+  
+  domain_name       = var.demo_domain_name
+  validation_method = "DNS"
+  tags = {
+    Environment = "production"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "validation" {
+  provider = aws.demo
+  allow_overwrite = true
+  name    = element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_name, 0)
+  type    = element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_type, 0)
+  records = [element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_value, 0)]
+  zone_id = data.aws_route53_zone.demo.zone_id
+  ttl     = 60
+}
+resource "aws_acm_certificate_validation" "valid" {
+  provider = aws.demo
+  certificate_arn         = aws_acm_certificate.certificate.arn
+  validation_record_fqdns = aws_route53_record.validation.*.fqdn
+}
+
+
+
+
+
+data "aws_route53_zone" "dev" {
+  provider = aws.dev
+ name         = var.dev_domain_name
+ #name         = "dev.dechengxu.me"
+}
+
+resource "aws_acm_certificate" "certificate_dev" {
+  provider = aws.dev
+  domain_name       = var.dev_domain_name
+  validation_method = "DNS"
+  tags = {
+    Environment = "develop"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "validation_dev" {
+  provider = aws.dev
+  allow_overwrite = true
+  name    = element(aws_acm_certificate.certificate_dev.domain_validation_options[*].resource_record_name, 0)
+  type    = element(aws_acm_certificate.certificate_dev.domain_validation_options[*].resource_record_type, 0)
+  records = [element(aws_acm_certificate.certificate_dev.domain_validation_options[*].resource_record_value, 0)]
+  zone_id = data.aws_route53_zone.dev.zone_id
+  ttl     = 60
+}
+resource "aws_acm_certificate_validation" "valid_dev" {
+  provider = aws.dev
+  certificate_arn         = aws_acm_certificate.certificate_dev.arn
+  validation_record_fqdns = aws_route53_record.validation_dev.*.fqdn
+}
+
+
+
+data "aws_route53_zone" "root" {
+  provider = aws.root
+  #name         = "dechengxu.me"
+
+  name         = var.root_domain_name
+}
+
+resource "aws_acm_certificate" "certificate_root" {
+  provider = aws.root
+  domain_name       = var.root_domain_name
+  validation_method = "DNS"
+  tags = {
+    Environment = "root"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "validation_root" {
+  provider = aws.root
+  allow_overwrite = true
+  name    = element(aws_acm_certificate.certificate_root.domain_validation_options[*].resource_record_name, 0)
+  type    = element(aws_acm_certificate.certificate_root.domain_validation_options[*].resource_record_type, 0)
+  records = [element(aws_acm_certificate.certificate_root.domain_validation_options[*].resource_record_value, 0)]
+  zone_id = data.aws_route53_zone.root.zone_id
+  ttl     = 60
+}
+resource "aws_acm_certificate_validation" "valid_root" {
+  provider = aws.root
+  certificate_arn         = aws_acm_certificate.certificate_root.arn
+  validation_record_fqdns = aws_route53_record.validation_root.*.fqdn
+}
+
+
+
+
+
 
 resource "aws_route53_record" "DC_record_root" {
   provider = aws.root
 
   name    = var.root_domain_name
   type    = "A"
-  ttl     = "60"
-  records = [aws_instance.ec2-instance.public_ip]
-  zone_id = var.root_zone_id
+  zone_id = data.aws_route53_zone.root.zone_id
+
+  alias {
+    name                   = aws_lb.app_load_balancer.dns_name
+    zone_id                = aws_lb.app_load_balancer.zone_id
+    evaluate_target_health = true
+  }
+
   lifecycle {
-    create_before_destroy=true
+    create_before_destroy = true
   }
 }
+
 resource "aws_route53_record" "DC_record_dev" {
   provider = aws.dev
+
   name    = var.dev_domain_name
   type    = "A"
-  ttl     = "60"
-  records = [aws_instance.ec2-instance.public_ip]
-  zone_id = var.dev_zone_id
+  zone_id = data.aws_route53_zone.dev.zone_id
+
+  alias {
+    name                   = aws_lb.app_load_balancer.dns_name
+    zone_id                = aws_lb.app_load_balancer.zone_id
+    evaluate_target_health = true
+  }
+
   lifecycle {
-    create_before_destroy=true
+    create_before_destroy = true
   }
 }
 
 resource "aws_route53_record" "DC_record_demo" {
-  
-  name    = var.domain_name
+  provider = aws.demo
+  name    = var.demo_domain_name
   type    = "A"
-  ttl     = "60"
-  records = [aws_instance.ec2-instance.public_ip]
-  zone_id = var.demo_zone_id
+  zone_id = data.aws_route53_zone.demo.zone_id
+
+  alias {
+    name                   = aws_lb.app_load_balancer.dns_name
+    zone_id                = aws_lb.app_load_balancer.zone_id
+    evaluate_target_health = true
+  }
+
   lifecycle {
-    create_before_destroy=true
+    create_before_destroy = true
   }
 }
 
+# choose one of three since only one can be in effect when you tf apply
 
+
+# resource "aws_lb_listener" "https_listener_dev" {
+#   provider = aws.dev
+#   load_balancer_arn = aws_lb.app_load_balancer.arn
+#   port              = "443"
+#   protocol          = "HTTPS"
+#   ssl_policy        = "ELBSecurityPolicy-2016-08"
+#   certificate_arn   = aws_acm_certificate_validation.valid_dev.certificate_arn
+
+#   default_action {
+#     type             = "forward"
+#     target_group_arn = aws_lb_target_group.app_target_group.arn
+#   }
+# }
+
+# choose one of three since only one can be in effect when you tf apply
+
+
+resource "aws_lb_listener" "https_listener_demo" {
+  provider = aws.demo
+  load_balancer_arn = aws_lb.app_load_balancer.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = aws_acm_certificate_validation.valid.certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_target_group.arn
+  }
+}
+
+# choose one of three since only one can be in effect when you tf apply
+
+# resource "aws_lb_listener" "https_listener_root" {
+#   provider = aws.root
+#   load_balancer_arn = aws_lb.app_load_balancer.arn
+#   port              = "443"
+#   protocol          = "HTTPS"
+#   ssl_policy        = "ELBSecurityPolicy-2016-08"
+#   certificate_arn   = aws_acm_certificate_validation.valid_root.certificate_arn
+
+#   default_action {
+#     type             = "forward"
+#     target_group_arn = aws_lb_target_group.app_target_group.arn
+#   }
+# }
