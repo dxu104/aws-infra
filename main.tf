@@ -5,7 +5,7 @@ module "vpc" {
 
   source              = "./Module/aws_vpcs"
   profile             = var.profile
-  domain_name         = var.domain_name
+  #domain_name         = var.domain_name
           
   public_subnets_num  = var.private_subnets_num
   private_subnets_num = var.private_subnets_num

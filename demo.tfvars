@@ -1,7 +1,7 @@
 
 profile = "demo"
-domain_name = "demo.dechengxu.me"
-AWS_ACCESS_KEY_ID = AKIASXLAYFSPGTHERZUJ
-AWS_SECRET_ACCESS_KEY = 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
+#domain_name = "demo.dechengxu.me"
+aws_access_key_id = AKIASXLAYFSPMFYZXX65
+aws_secret_access_key = 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
 
 
