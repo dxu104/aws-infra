@@ -601,7 +601,7 @@ resource "aws_lb_target_group" "app_target_group" {
 
   health_check {
     enabled             = true
-    interval            = 200
+    interval            = 60
     path                = "/healthz"
     timeout             = 5
     healthy_threshold   = 3
