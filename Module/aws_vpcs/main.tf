@@ -185,8 +185,6 @@ resource "aws_security_group" "web_security_group" {
   description = "Allow inbound traffic for app instances"
   vpc_id      = aws_vpc.vpc.id
 
- 
-
   ingress {
     from_port       = 22
     to_port         = 22
@@ -401,7 +399,9 @@ resource "aws_launch_template" "asg_launch_template" {
 
 # Auto Scaling Group
 resource "aws_autoscaling_group" "web_asg" {
-  name_prefix          = "web_asg"
+
+  name_prefix="web_asg" 
+
   #和下面的launch_template重复
   #launch_configuration = aws_launch_template.asg_launch_template.name
   min_size             = 1
