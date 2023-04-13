@@ -399,7 +399,9 @@ resource "aws_launch_template" "asg_launch_template" {
 
 # Auto Scaling Group
 resource "aws_autoscaling_group" "web_asg" {
+
   name_prefix="web_asg" 
+
   #和下面的launch_template重复
   #launch_configuration = aws_launch_template.asg_launch_template.name
   min_size             = 1
