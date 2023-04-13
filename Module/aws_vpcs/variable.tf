@@ -130,9 +130,8 @@ variable "demo_domain_name" {
 variable "application_port" {
   default= 8080
   description = "app port number"
-  type = number
+  type = number 
 }
-
 
 
 
