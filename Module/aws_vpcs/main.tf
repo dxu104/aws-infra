@@ -4,17 +4,38 @@
 provider "aws" {
   region  = var.region
   profile = var.profile
+  # max_retries = 10
+  # http_client {
+  #   connection_timeout = "120s"
+  #   expect_continue_timeout = "5s"
+  #   idle_conn_timeout = "120s"
+  #   response_header_timeout = "60s"
+  # }
 }
 provider "aws" {
   alias = "demo"
   region = var.region
   profile = "demo"
+  # max_retries = 10
+  # http_client {
+  #   connection_timeout = "120s"
+  #   expect_continue_timeout = "5s"
+  #   idle_conn_timeout = "120s"
+  #   response_header_timeout = "60s"
+  # }
   
 }
 provider "aws" {
   alias = "dev"
   region = var.region
   profile = "dev"
+  # max_retries = 10
+  # http_client {
+  #   connection_timeout = "120s"
+  #   expect_continue_timeout = "5s"
+  #   idle_conn_timeout = "120s"
+  #   response_header_timeout = "60s"
+  # }
   
 }
 provider "aws" {
@@ -369,14 +390,18 @@ resource "aws_launch_template" "asg_launch_template" {
       volume_size           = 50
       volume_type           = "gp2"
       delete_on_termination = true
+       kms_key_id  = aws_kms_key.ebs_key.arn
+      encrypted   = true
     }
   }
+  
 
 }
 
 
 # Auto Scaling Group
 resource "aws_autoscaling_group" "web_asg" {
+  name_prefix          = "web_asg"
   #和下面的launch_template重复
   #launch_configuration = aws_launch_template.asg_launch_template.name
   min_size             = 1
@@ -398,6 +423,7 @@ launch_template {
  version = "$Latest"
 
  }
+ #wait_for_capacity_timeout = "20m" # Increase the timeout to 20 minutes
 
   tag {
     key                 = "Name"
@@ -556,6 +582,11 @@ resource "aws_db_instance" "rds_instance" {
   db_subnet_group_name = aws_db_subnet_group.rds_subnet_group.name
   parameter_group_name = aws_db_parameter_group.rds-paragrp.id
   allocated_storage    = 20
+   kms_key_id = aws_kms_key.rds_key.arn
+  storage_encrypted = true
+  tags = {
+    Name = "webApp-rds-instance"
+  }
 }
 
 
@@ -609,16 +640,17 @@ resource "aws_lb_target_group" "app_target_group" {
     matcher=200
   }
 }
-resource "aws_lb_listener" "http_listener" {
-  load_balancer_arn = aws_lb.app_load_balancer.arn
-  port              = "80"
-  protocol          = "HTTP"
+#Assignment 9 not allow 80 any more;
+# resource "aws_lb_listener" "http_listener" {
+#   load_balancer_arn = aws_lb.app_load_balancer.arn
+#   port              = "80"
+#   protocol          = "HTTP"
 
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app_target_group.arn
-  }
-}
+#   default_action {
+#     type             = "forward"
+#     target_group_arn = aws_lb_target_group.app_target_group.arn
+#   }
+# }
 
 # Register the Auto Scaling Group instances as targets
 # resource "aws_autoscaling_attachment" "asg_attachment" {
@@ -637,34 +669,47 @@ data "aws_route53_zone" "demo" {
   name         = var.demo_domain_name
 }
 
-resource "aws_acm_certificate" "certificate" {
+
+data "aws_acm_certificate" "imported_certificate" {
   provider = aws.demo
+  domain   = var.demo_domain_name
+  statuses = ["ISSUED"]
+}
+
+
+
+
+
+
+# 首先，删除现有的 aws_acm_certificate，aws_route53_record 和 aws_acm_certificate_validation 资源，因为它们是用于请求新证书的。
+# resource "aws_acm_certificate" "certificate" {
+#   provider = aws.demo
   
-  domain_name       = var.demo_domain_name
-  validation_method = "DNS"
-  tags = {
-    Environment = "production"
-  }
+#   domain_name       = var.demo_domain_name
+#   validation_method = "DNS"
+#   tags = {
+#     Environment = "production"
+#   }
 
-  lifecycle {
-    create_before_destroy = true
-  }
-}
+#   lifecycle {
+#     create_before_destroy = true
+#   }
+# }
 
-resource "aws_route53_record" "validation" {
-  provider = aws.demo
-  allow_overwrite = true
-  name    = element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_name, 0)
-  type    = element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_type, 0)
-  records = [element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_value, 0)]
-  zone_id = data.aws_route53_zone.demo.zone_id
-  ttl     = 60
-}
-resource "aws_acm_certificate_validation" "valid" {
-  provider = aws.demo
-  certificate_arn         = aws_acm_certificate.certificate.arn
-  validation_record_fqdns = aws_route53_record.validation.*.fqdn
-}
+# resource "aws_route53_record" "validation" {
+#   provider = aws.demo
+#   allow_overwrite = true
+#   name    = element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_name, 0)
+#   type    = element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_type, 0)
+#   records = [element(aws_acm_certificate.certificate.domain_validation_options[*].resource_record_value, 0)]
+#   zone_id = data.aws_route53_zone.demo.zone_id
+#   ttl     = 60
+# }
+# resource "aws_acm_certificate_validation" "valid" {
+#   provider = aws.demo
+#   certificate_arn         = aws_acm_certificate.certificate.arn
+#   validation_record_fqdns = aws_route53_record.validation.*.fqdn
+# }
 
 
 
@@ -675,7 +720,7 @@ data "aws_route53_zone" "dev" {
  name         = var.dev_domain_name
  #name         = "dev.dechengxu.me"
 }
-
+#这段代码对应着AWS Certificate -> Manager Certificates-> Request certificate
 resource "aws_acm_certificate" "certificate_dev" {
   provider = aws.dev
   domain_name       = var.dev_domain_name
@@ -796,6 +841,7 @@ resource "aws_route53_record" "DC_record_demo" {
 
   lifecycle {
     create_before_destroy = true
+    
   }
 }
 
@@ -825,7 +871,7 @@ resource "aws_lb_listener" "https_listener_demo" {
   port              = "443"
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-2016-08"
-  certificate_arn   = aws_acm_certificate_validation.valid.certificate_arn
+  certificate_arn   = data.aws_acm_certificate.imported_certificate.arn
 
   default_action {
     type             = "forward"
@@ -848,3 +894,70 @@ resource "aws_lb_listener" "https_listener_demo" {
 #     target_group_arn = aws_lb_target_group.app_target_group.arn
 #   }
 # }
+
+#A9 for dev,using AWS IAM user dev account 814613584038
+# resource "aws_kms_key" "ebs_key" {
+#   description = "customer-managed KMS key"
+#   # Allow the IAM user or role specified in the "principal" block to use the key
+#   policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         "Sid": "Enable IAM User Permissions",
+#         "Effect": "Allow",
+#         "Principal": {
+#           "AWS": ["arn:aws:iam::814613584038:user/DechengXu",aws_iam_role.ec2_role.arn]
+#         },
+#         "Action": "kms:*",
+#         "Resource": "*"
+#       },
+#       {
+#         "Sid" : "Enable kms access for auto scaling",
+#         "Effect" : "Allow",
+#         "Principal" : {
+#           "AWS" : "arn:aws:iam::814613584038:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+#         },
+#         "Action" : "kms:*",
+#         "Resource" : "*",
+#       }
+#     ]
+#   })
+# }
+
+
+#A9 for demo,using AWS IAM user demo account 187570859166
+resource "aws_kms_key" "ebs_key" {
+  description = "customer-managed KMS key"
+  # Allow the IAM user or role specified in the "principal" block to use the key
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        "Sid": "Enable IAM User Permissions",
+        "Effect": "Allow",
+        "Principal": {
+          "AWS": ["arn:aws:iam::187570859166:user/DechengXu",aws_iam_role.ec2_role.arn]
+        },
+        "Action": "kms:*",
+        "Resource": "*"
+      },
+      {
+        "Sid" : "Enable kms access for auto scaling",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::187570859166:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+        },
+        "Action" : "kms:*",
+        "Resource" : "*",
+      }
+    ]
+  })
+}
+
+resource "aws_kms_key" "rds_key" {
+  description = "RDS encryption key"
+}
+
+
+
+

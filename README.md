@@ -23,4 +23,8 @@
    ```
 
    3. login into your IAM root user, choose Oregen region, go to VPC tab.
+   4. Command to Import SSL Certificate:
+   ```
+   aws --profile demo acm import-certificate --certificate fileb://demo_dechengxu_me.crt --certificate-chain fileb://demo_dechengxu_me.ca-bundle --private-key fileb://private.txt
+   ```
 
